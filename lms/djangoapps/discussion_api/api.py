@@ -742,9 +742,9 @@ def _do_extra_actions(api_content, cc_content, request_fields, actions_form, con
         if field in request_fields and form_value != api_content[field]:
             api_content[field] = form_value
             if field == "following":
-                _handle_following_field(form_value, context["cc_requester"], cc_content, api_content)
+                _handle_following_field(form_value, context["cc_requester"], cc_content)
             elif field == "abuse_flagged":
-                _handle_abuse_flagged_field(form_value, context["cc_requester"], cc_content, api_content)
+                _handle_abuse_flagged_field(form_value, context["cc_requester"], cc_content)
             elif field == "voted":
                 _handle_voted_field(form_value, cc_content, api_content, request, context)
             elif field == "read":
@@ -753,28 +753,20 @@ def _do_extra_actions(api_content, cc_content, request_fields, actions_form, con
                 raise ValidationError({field: ["Invalid Key"]})
 
 
-def _handle_following_field(form_value, user, cc_content, api_content):
+def _handle_following_field(form_value, user, cc_content):
     """follow/unfollow thread for the user"""
     if form_value:
         user.follow(cc_content)
-        if cc_content["type"] == "thread":
-            api_content["read"] = True
     else:
         user.unfollow(cc_content)
-        if cc_content["type"] == "thread":
-            api_content["read"] = True
 
 
-def _handle_abuse_flagged_field(form_value, user, cc_content, api_content):
+def _handle_abuse_flagged_field(form_value, user, cc_content):
     """mark or unmark thread/comment as abused"""
     if form_value:
         cc_content.flagAbuse(user, cc_content)
-        if cc_content["type"] == "thread":
-            api_content["read"] = True
     else:
         cc_content.unFlagAbuse(user, cc_content, removeAll=False)
-        if cc_content["type"] == "thread":
-            api_content["read"] = True
 
 
 def _handle_voted_field(form_value, cc_content, api_content, request, context):
@@ -784,13 +776,9 @@ def _handle_voted_field(form_value, cc_content, api_content, request, context):
     if form_value:
         context["cc_requester"].vote(cc_content, "up")
         api_content["vote_count"] += 1
-        if cc_content["type"] == "thread":
-            api_content["read"] = True
     else:
         context["cc_requester"].unvote(cc_content)
         api_content["vote_count"] -= 1
-        if cc_content["type"] == "thread":
-            api_content["read"] = True
     track_voted_event(
         request, context["course"], cc_content, vote_value="up", undo_vote=False if form_value else True
     )
@@ -915,9 +903,7 @@ def update_thread(request, thread_id, update_data):
         The updated thread; see discussion_api.views.ThreadViewSet for more
         detail.
     """
-    cc_thread, context = _get_thread_and_context(
-        request, thread_id, retrieve_kwargs={"user_id": unicode(request.user.id)}
-    )
+    cc_thread, context = _get_thread_and_context(request, thread_id)
     _check_editable_fields(cc_thread, update_data, context)
     serializer = ThreadSerializer(cc_thread, data=update_data, partial=True, context=context)
     actions_form = ThreadActionsForm(update_data)
@@ -930,6 +916,11 @@ def update_thread(request, thread_id, update_data):
         thread_edited.send(sender=None, user=request.user, post=cc_thread)
     api_thread = serializer.data
     _do_extra_actions(api_thread, cc_thread, update_data.keys(), actions_form, context, request)
+
+    # always return read as True (and henceforth unread_comment_count=0) as reasonably
+    # accurate shortcut, rather than adding additional processing.
+    api_thread['read'] = True
+    api_thread['unread_comment_count'] = 0
     return api_thread
 
 
