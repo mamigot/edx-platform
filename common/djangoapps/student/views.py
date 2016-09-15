@@ -2145,7 +2145,7 @@ def uidb36_to_uidb64(uidb36):
     return uidb64
 
 
-def validate_password(user, password):
+def validate_password(user, password, password2):
     """
     Tie in password policy enforcement as an optional level of
     security protection
@@ -2153,6 +2153,7 @@ def validate_password(user, password):
     Args:
         user: the user object whose password we're checking.
         password: the user's proposed new password.
+        password2: the user's proposed new password.
 
     Returns:
         is_valid_password: a boolean indicating if the new password
@@ -2161,6 +2162,10 @@ def validate_password(user, password):
             checks. Otherwise, `None`.
     """
     err_msg = None
+
+    # Check if provided password does not match.
+    if password != password2:
+        err_msg = _('The text in both password fields did not match')
 
     if settings.FEATURES.get('ENFORCE_PASSWORD_POLICY', False):
         try:
@@ -2220,14 +2225,16 @@ def password_reset_confirm_wrapper(request, uidb36=None, token=None):
         )
 
     if request.method == 'POST':
-        password = request.POST['new_password1']
-        is_password_valid, password_err_msg = validate_password(user, password)
+        password1 = request.POST['new_password1']
+        password2 = request.POST['new_password2']
+        is_password_valid, password_err_msg = validate_password(user, password1, password2)
+
         if not is_password_valid:
             # We have a password reset attempt which violates some security
             # policy. Use the existing Django template to communicate that
             # back to the user.
             context = {
-                'validlink': False,
+                'validlink': True,
                 'form': None,
                 'title': _('Password reset unsuccessful'),
                 'err_msg': password_err_msg,

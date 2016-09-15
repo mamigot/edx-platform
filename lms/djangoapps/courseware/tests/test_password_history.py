@@ -338,3 +338,24 @@ class TestPasswordHistory(LoginEnrollmentTestCase):
         }, follow=True)
 
         self.assertIn(success_msg, resp.content)
+
+    def test_non_matching_password_reset(self):
+        """
+        Tests that password rest fail when provided passwords does not match.
+        """
+        user_email, _ = self._setup_user()
+        err_msg = 'The text in both password fields did not match'
+
+        # try to reset password, it should fail
+        user = User.objects.get(email=user_email)
+        token = default_token_generator.make_token(user)
+        uidb36 = int_to_base36(user.id)
+
+        # try to do a password reset with the same password as before
+        resp = self.client.post('/password_reset_confirm/{0}-{1}/'.format(uidb36, token), {
+            'new_password1': 'foo',
+            'new_password2': 'foofoo',
+        }, follow=True)
+
+        self.assertPasswordResetError(resp, err_msg)
+
