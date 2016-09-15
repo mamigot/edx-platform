@@ -108,6 +108,15 @@ class GradesTransformerTestCase(CourseStructureTestCase):
         ])
 
     def build_course_with_block_from_file(self, block_type, filename, metadata=None):
+        """
+        Build a course with a block of the named type using the XML file
+        specified.
+
+        Metadata for the block may be specified, but defaults to
+        self.problem_metadata.
+
+        The XML file is found in lms/djangoapps/grades/tests/data.
+        """
         metadata = metadata or self.problem_metadata
         filepath = Path(__file__).dirname() / 'data' / filename
         data = open(filepath).read()
@@ -376,8 +385,8 @@ class GradesTransformerTestCase(CourseStructureTestCase):
         blocks = self.build_course_with_block_from_file(block_type, filename, metadata)
         block_structure = get_course_blocks(self.student, blocks[u'course'].location, self.transformers)
         sequence = block_structure[u'sequence']
-        subsection_factory = SubsectionGradeFactory(self.student)
-        grades = subsection_factory.update(sequence, block_structure, blocks[u'course'])
+        subsection_factory = SubsectionGradeFactory(self.student, block_structure, blocks[u'course'])
+        subsection_factory.update(sequence)
 
 
 class MultiProblemModulestoreAccessTestCase(CourseStructureTestCase, SharedModuleStoreTestCase):
